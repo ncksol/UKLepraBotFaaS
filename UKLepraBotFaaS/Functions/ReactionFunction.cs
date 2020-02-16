@@ -9,51 +9,40 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Linq;
+using Telegram.Bot.Types;
+using Microsoft.WindowsAzure.Storage.Queue;
+using Newtonsoft.Json.Linq;
 
 namespace UKLepraBotFaaS.Functions
 {
     public static class ReactionFunction
     {
         [FunctionName("ReactionFunction")]
-        public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
-            [Blob("data/reactions.json")] string reactionsString,
+        public static async Task Run(
+            [QueueTrigger(Constants.ReactionsQueueName)]string inputString,
+            [Queue(Constants.OutputQueueName)] CloudQueue output,
             ILogger log)
         {
-            Reply reply = null;
-
             try
             {
-                var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-                dynamic data = JsonConvert.DeserializeObject(requestBody);
-                var message = Convert.ToString(data?.message);
+                log.LogInformation(inputString);
+                var input = JsonConvert.DeserializeObject<dynamic>(inputString);
+                var reaction = (input?.reaction as JObject).ToObject<Reaction>();
+                var chatId = input?.chatid;
+                var replyToId = input?.replytoid;
 
-                if (string.IsNullOrEmpty(message))
-                    return new BadRequestObjectResult("Please pass a message in the request body");
-
-                reply = DoReaction(message, reactionsString);
-
+                var reply = DoReaction(reaction);
+                var data = new { ChatId = chatId, ReplyToMessageId = replyToId, Text = reply.Text, Sticker = reply.Sticker };
+                await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
             }
             catch (Exception e)
             {
                 log.LogError(e, "Error while processing Reaction function");
             }
-
-            return new ObjectResult(reply);
         }
 
-        private static Reply DoReaction(string message, string reactionsString)
+        private static Reply DoReaction(Reaction reaction)
         {
-            var reactions = JsonConvert.DeserializeObject<ReactionsList>(reactionsString);
-
-            var messageText = message.ToLower();
-
-            var reaction = reactions.Items.FirstOrDefault(x => x.Triggers.Any(messageText.Contains));
-            
-            if (reaction == null) return null;
-            if (reaction.IsMentionReply && HelperMethods.MentionsBot(message) == false) return null;
-            if (reaction.IsAlwaysReply == false && HelperMethods.YesOrNo() == false) return null;
-
             var reactionReply = reaction.Replies.Count <= 1 ? reaction.Replies.FirstOrDefault() : reaction.Replies[HelperMethods.RandomInt(reaction.Replies.Count)];
             return reactionReply;
         }

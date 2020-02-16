@@ -1,10 +1,6 @@
 ﻿using System;
-using System.IO;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using System.Collections.Generic;
@@ -19,17 +15,15 @@ namespace UKLepraBotFaaS.Functions
         private static Random _rnd = new Random();
 
         [FunctionName("HuifyFunction")]
-        public async static Task Run([QueueTrigger("huify")]Message input, [Queue("output")] CloudQueue output, ILogger log)
+        public async static Task Run(
+            [QueueTrigger(Constants.HuifyQueueName)]Message input, 
+            [Queue(Constants.OutputQueueName)] CloudQueue output, 
+            ILogger log)
         {
-            var huifiedMessage = string.Empty;
-
             try
             {
-                //var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-                //dynamic data = JsonConvert.DeserializeObject(requestBody);
-                //var message = Convert.ToString(data?.message);
                 var message = input.Text;
-                huifiedMessage = HuifyMeInternal(message);
+                var huifiedMessage = HuifyMeInternal(message);
 
                 var data = new {ChatId = input.Chat.Id, ReplyToMessageId = input.MessageId, Text = huifiedMessage};
                 await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using Telegram.Bot.Types;
 
 namespace UKLepraBotFaaS
 {
@@ -18,20 +19,14 @@ namespace UKLepraBotFaaS
             return rnd.Next(max);
         }
 
-        public static bool MentionsId(string message, string id)
+        public static bool MentionsId(Message message, string id)
         {
-            //var channelData = (JObject)message.ChannelData;
-            //var messageData = JsonConvert.DeserializeObject<JsonModels.Message>(channelData["message"].ToString());
+            if (string.IsNullOrEmpty(message.Text)) return false;
 
-            //if (messageData?.reply_to_message?.@from?.username == WebApiApplication.TelegramBotName)
-            //    return true;
-
-            if (string.IsNullOrEmpty(message)) return false;
-
-            return message.Contains($"@{id}");
+            return message.Text.Contains($"@{id}");
         }
 
-        public static bool MentionsBot(string message)
+        public static bool MentionsBot(Message message)
         {
             return MentionsId(message, Configuration.Instance.TelegramBotId);
         }

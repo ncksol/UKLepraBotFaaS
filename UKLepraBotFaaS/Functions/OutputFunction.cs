@@ -1,17 +1,17 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Telegram.Bot;
+using Telegram.Bot.Types.Enums;
 
 namespace UKLepraBotFaaS.Functions
 {
     public static class OutputFunction
     {
         [FunctionName("OutputFunction")]
-        public async static Task Run([QueueTrigger("output")]string input, ILogger log)
+        public async static Task Run([QueueTrigger(Constants.OutputQueueName)]string input, ILogger log)
         {
             var bot = new TelegramBotClient(Configuration.Instance.BotToken);
             try
@@ -25,13 +25,17 @@ namespace UKLepraBotFaaS.Functions
                 string replyToMessageId = data?.ReplyToMessageId;
                 string text = data?.Text;
                 string sticker = data?.Sticker;
+                bool? disableWebPagePreview = data?.DisableWebPagePreview ?? false;
+                int? parseMode = data?.ParseMode ?? (int?)ParseMode.Default;
 
                 if(string.IsNullOrEmpty(text) == false)
                 {
                     await bot.SendTextMessageAsync(
                             chatId: chatId,
                             replyToMessageId: Convert.ToInt32(replyToMessageId),
-                            text: text);
+                            text: text,
+                            disableWebPagePreview: disableWebPagePreview.Value,
+                            parseMode: (ParseMode)parseMode.Value);
                 }
                 else if(string.IsNullOrEmpty(sticker) == false)
                 {

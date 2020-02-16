@@ -1,15 +1,14 @@
 ﻿using System;
-using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using System.Linq;
 using System.Collections.Generic;
 using Microsoft.WindowsAzure.Storage.Blob;
+using Telegram.Bot.Types;
+using Microsoft.WindowsAzure.Storage.Queue;
 
 namespace UKLepraBotFaaS.Functions
 {
@@ -20,48 +19,39 @@ namespace UKLepraBotFaaS.Functions
         private static ILogger _log;
 
         [FunctionName("SettingsFunction")]
-        public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
-            [Blob("data/chatsettings.json")] string chatSettingsString,
-            [Blob("data")] CloudBlobContainer output,
+        public static async Task Run(
+            [QueueTrigger(Constants.SettingsQueueName)]Message input,
+            [Blob(Constants.ChatSettingsBlobPath)] string chatSettingsString,
+            [Blob(Constants.DataBlobPath)] CloudBlobContainer chatSettingsOutput,
+            [Queue(Constants.OutputQueueName)] CloudQueue output,
             ILogger log)
         {
             _log = log;
-            string reply = null;
 
             try
             {
                 _rnd = new Random();
-                var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-                dynamic data = JsonConvert.DeserializeObject(requestBody);
-                var message = Convert.ToString(data?.message);
-                var chatId = Convert.ToString(data?.chatid);
-                var from = Convert.ToString(data?.from);
 
                 _chatSettings = JsonConvert.DeserializeObject<ChatSettings>(chatSettingsString);
 
-                if (string.IsNullOrEmpty(message))
-                    return new BadRequestObjectResult("Please pass a message in the request body");
-                if (string.IsNullOrEmpty(chatId))
-                    return new BadRequestObjectResult("Please pass a chatid in the request body");
-                if (string.IsNullOrEmpty(from))
-                    return new BadRequestObjectResult("Please pass a from in the request body");
+                var reply = ProcessSettingCommand(input);log.LogInformation(reply);
+                var data = new { ChatId = input.Chat.Id, Text = reply };
+                await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
 
-                reply = ProcessSettingCommand(message, chatId, from);
-
-                var settingsBlob = output.GetBlockBlobReference("chatsettings.json");
+                var settingsBlob = chatSettingsOutput.GetBlockBlobReference("chatsettings.json");
                 await settingsBlob.UploadTextAsync(JsonConvert.SerializeObject(_chatSettings));
             }
             catch (Exception e)
             {
                 log.LogError(e, "Error while processing Reaction function");
             }
-
-            return new ObjectResult(reply);
         }
 
-        private static string ProcessSettingCommand(string message, string chatId, string from)
+        private static string ProcessSettingCommand(Message message)
         {
+            var chatId = message.Chat.Id.ToString();
+            var from = message.From.Id.ToString();
+            var text = message.Text;
 
             var delaySettings = _chatSettings.DelaySettings.ContainsKey(chatId)
                 ? _chatSettings.DelaySettings[chatId]
@@ -75,18 +65,18 @@ namespace UKLepraBotFaaS.Functions
 
             string reply = null;
 
-            if (message.ToLower().Contains("/huify"))
-                reply = StartHuifyCommand(message, chatId, from, delaySettings);
-            else if (message.ToLower().Contains("/unhuify"))
-                reply = StopHuifyCommand(message, chatId, from);
-            else if (message.ToLower().Contains("/status"))
+            if (text.ToLower().Contains("/huify"))
+                reply = StartHuifyCommand(chatId, from, delaySettings);
+            else if (text.ToLower().Contains("/unhuify"))
+                reply = StopHuifyCommand(chatId, from);
+            else if (text.ToLower().Contains("/status"))
                 reply = StatusCommand(state, currentDelay, delaySettings);
-            else if (message.ToLower().Contains("/uptime"))
+            else if (text.ToLower().Contains("/uptime"))
                 reply = UptimeCommand();
-            else if (message.ToLower().Contains("/delay"))
-                reply = DelayCommand(message, chatId, from);
-            else if (message.ToLower().Contains("/secret"))
-                reply = SecretCommand(message);
+            else if (text.ToLower().Contains("/delay"))
+                reply = DelayCommand(text, chatId, from);
+            else if (text.ToLower().Contains("/secret"))
+                reply = SecretCommand(text);
 
             return reply;
         }
@@ -191,7 +181,7 @@ namespace UKLepraBotFaaS.Functions
             return reply;
         }
 
-        private static string StopHuifyCommand(string message, string conversationId, string from)
+        private static string StopHuifyCommand(string conversationId, string from)
         {
             string reply;
 
@@ -220,7 +210,7 @@ namespace UKLepraBotFaaS.Functions
             return "Не положено холопам королеве указывать!";
         }
 
-        private static string StartHuifyCommand(string message, string conversationId, string from, Tuple<int, int> delaySettings)
+        private static string StartHuifyCommand(string conversationId, string from, Tuple<int, int> delaySettings)
         {
             string reply;
 

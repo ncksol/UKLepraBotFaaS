@@ -1,13 +1,13 @@
 ﻿using System;
-using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using System.Linq;
+using Telegram.Bot.Types;
+using Microsoft.WindowsAzure.Storage.Queue;
+using Telegram.Bot.Types.Enums;
 
 namespace UKLepraBotFaaS.Functions
 {
@@ -16,39 +16,34 @@ namespace UKLepraBotFaaS.Functions
         private static string[] _rubbish = new[] { ".", ",", "-", "=", "#", "!", "?", "%", "@", "\"", "£", "$", "^", "&", "*", "(", ")", "_", "+", "]", "[", "{", "}", ";", ":", "~", "/", "<", ">", };
 
         [FunctionName("GoogleItFunction")]
-        public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+        public static async Task Run(
+            [QueueTrigger(Constants.GoogleItQueueName)]Message input,
+            [Queue(Constants.OutputQueueName)] CloudQueue output,
             ILogger log)
         {
-            var reply = string.Empty;
-
             try
             {
-                var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-                dynamic data = JsonConvert.DeserializeObject(requestBody);
-                var message = Convert.ToString(data?.message);
+                var messageText = input.Text.ToLower() ?? string.Empty;
 
-                if (string.IsNullOrEmpty(message))
-                    return new BadRequestObjectResult("Please pass a message in the request body");
+                if (messageText.ToLower().Contains("погугли"))
+                {
+                    var reply = GoogleCommand(input);
 
-                reply = GoogleCommand(message);
+                    var data = new { ChatId = input.Chat.Id, ReplyToMessageId = input.MessageId, Text = reply, DisableWebPagePreview = true, ParseMode = (int)ParseMode.MarkdownV2 };
+                    await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
+                }
             }
             catch (Exception e)
             {
-                log.LogError(e, "Error while processing GoogleIt function");
+                log.LogError(e, "Error while processing AI function");
             }
-
-            if (string.IsNullOrEmpty(reply))
-                return new ObjectResult(null);
-
-            return new ObjectResult(reply);
         }
 
-        private static string GoogleCommand(string message)
+        private static string GoogleCommand(Message message)
         {
             var activationWord = "погугли";
 
-            var cleanedMessageText = message;
+            var cleanedMessageText = message.Text;
             _rubbish.ToList().ForEach(x => cleanedMessageText = cleanedMessageText.Replace(x, " "));
 
             var messageParts = cleanedMessageText.Split(new[] { " " }, StringSplitOptions.RemoveEmptyEntries).ToList();
