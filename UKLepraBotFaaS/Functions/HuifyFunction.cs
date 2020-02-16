@@ -9,6 +9,8 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using Telegram.Bot.Types;
+using Microsoft.WindowsAzure.Storage.Queue;
 
 namespace UKLepraBotFaaS.Functions
 {
@@ -17,33 +19,25 @@ namespace UKLepraBotFaaS.Functions
         private static Random _rnd = new Random();
 
         [FunctionName("HuifyFunction")]
-        public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
-            ILogger log)
+        public async static Task Run([QueueTrigger("huify")]Message input, [Queue("output")] CloudQueue output, ILogger log)
         {
             var huifiedMessage = string.Empty;
 
             try
-            { 
-                var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-                dynamic data = JsonConvert.DeserializeObject(requestBody);
-                var message = Convert.ToString(data?.message);
-
-                if (string.IsNullOrEmpty(message))
-                    return new BadRequestObjectResult("Please pass a message in the request body");
-
+            {
+                //var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                //dynamic data = JsonConvert.DeserializeObject(requestBody);
+                //var message = Convert.ToString(data?.message);
+                var message = input.Text;
                 huifiedMessage = HuifyMeInternal(message);
 
+                var data = new {ChatId = input.Chat.Id, ReplyToMessageId = input.MessageId, Text = huifiedMessage};
+                await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
             }
             catch (Exception e)
             {
                 log.LogError(e, "Error while huifying message");
             }
-
-            if (string.IsNullOrEmpty(huifiedMessage))
-                return new ObjectResult(null);
-
-            return new ObjectResult(huifiedMessage);
         }
 
         private static string HuifyMeInternal(string message)

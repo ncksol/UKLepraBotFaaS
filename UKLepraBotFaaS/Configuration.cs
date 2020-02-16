@@ -12,6 +12,7 @@ namespace UKLepraBotFaaS
             MasterId = GetEnvironmentVariable("MasterId");
             AdminIds = GetEnvironmentVariable("AdminIds");
             SecretKey = GetEnvironmentVariable("SecretKey");
+            BotToken = GetEnvironmentVariable("BotToken");
         }
 
         public static Configuration Instance
@@ -28,6 +29,7 @@ namespace UKLepraBotFaaS
         public string MasterId {get; private set; }
         public string AdminIds { get; private set; }
         public string SecretKey { get; private set; }
+        public string BotToken { get; private set; }
 
         private DateTimeOffset? _startupTime = null;
         public DateTimeOffset? StartupTime
