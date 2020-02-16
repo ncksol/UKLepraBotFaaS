@@ -45,10 +45,12 @@ namespace UKLepraBotFaaS.Functions
             _aiQueueOutput = aiQueueOutput;
             _reactionsQueueOutput = reactionsQueueOutput;
 
+            log.LogInformation("Processing InputFuction");
+
             try
             {
                 var requestBody = await new StreamReader(req.Body).ReadToEndAsync();                
-                var update = JsonConvert.DeserializeObject<Update>(requestBody);log.LogInformation(requestBody);
+                var update = JsonConvert.DeserializeObject<Update>(requestBody);
                 if(update.Type != UpdateType.Message) return new OkObjectResult("");
 
                 _reactions = JsonConvert.DeserializeObject<ReactionsList>(reactionsString);

@@ -13,6 +13,8 @@ namespace UKLepraBotFaaS.Functions
         [FunctionName("OutputFunction")]
         public async static Task Run([QueueTrigger(Constants.OutputQueueName)]string input, ILogger log)
         {
+            log.LogInformation("Processing OutputFunction");
+
             var bot = new TelegramBotClient(Configuration.Instance.BotToken);
             try
             {

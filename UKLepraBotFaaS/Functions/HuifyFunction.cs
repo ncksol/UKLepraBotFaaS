@@ -20,6 +20,8 @@ namespace UKLepraBotFaaS.Functions
             [Queue(Constants.OutputQueueName)] CloudQueue output, 
             ILogger log)
         {
+            log.LogInformation("Processing HuifyFunction");
+
             try
             {
                 var message = input.Text;

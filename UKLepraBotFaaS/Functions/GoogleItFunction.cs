@@ -21,6 +21,8 @@ namespace UKLepraBotFaaS.Functions
             [Queue(Constants.OutputQueueName)] CloudQueue output,
             ILogger log)
         {
+            log.LogInformation("Processing GoogleItFunction");
+
             try
             {
                 var messageText = input.Text.ToLower() ?? string.Empty;

@@ -28,13 +28,14 @@ namespace UKLepraBotFaaS.Functions
         {
             _log = log;
 
+            log.LogInformation("Processing SettingsFunction");
             try
             {
                 _rnd = new Random();
 
                 _chatSettings = JsonConvert.DeserializeObject<ChatSettings>(chatSettingsString);
 
-                var reply = ProcessSettingCommand(input);log.LogInformation(reply);
+                var reply = ProcessSettingCommand(input);
                 var data = new { ChatId = input.Chat.Id, Text = reply };
                 await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
 
@@ -43,7 +44,7 @@ namespace UKLepraBotFaaS.Functions
             }
             catch (Exception e)
             {
-                log.LogError(e, "Error while processing Reaction function");
+                log.LogError(e, "Error while processing Settings function");
             }
         }
 

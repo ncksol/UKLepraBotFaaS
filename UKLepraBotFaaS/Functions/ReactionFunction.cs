@@ -23,9 +23,10 @@ namespace UKLepraBotFaaS.Functions
             [Queue(Constants.OutputQueueName)] CloudQueue output,
             ILogger log)
         {
+            log.LogInformation("Processing ReactionFunction");
+
             try
             {
-                log.LogInformation(inputString);
                 var input = JsonConvert.DeserializeObject<dynamic>(inputString);
                 var reaction = (input?.reaction as JObject).ToObject<Reaction>();
                 var chatId = input?.chatid;
