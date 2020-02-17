@@ -21,6 +21,7 @@ namespace UKLepraBotFaaS.Functions
         private static CloudQueue _settingsQueueOutput;
         private static CloudQueue _aiQueueOutput;
         private static CloudQueue _reactionsQueueOutput;
+        private static CloudQueue _chatMembersUpdateOutput;
 
         private static ReactionsList _reactions;
 
@@ -36,6 +37,7 @@ namespace UKLepraBotFaaS.Functions
             [Queue(Constants.SettingsQueueName)] CloudQueue settingsQueueOutput,
             [Queue(Constants.GoogleItQueueName)] CloudQueue aiQueueOutput,
             [Queue(Constants.ReactionsQueueName)] CloudQueue reactionsQueueOutput,
+            [Queue(Constants.ChatMembersUpdateQueueName)] CloudQueue chatMembersUpdateOutput,
             [Blob(Constants.ReactionsBlobPath)] string reactionsString,
             ILogger log)
         {
@@ -44,6 +46,7 @@ namespace UKLepraBotFaaS.Functions
             _settingsQueueOutput = settingsQueueOutput;
             _aiQueueOutput = aiQueueOutput;
             _reactionsQueueOutput = reactionsQueueOutput;
+            _chatMembersUpdateOutput = chatMembersUpdateOutput;
 
             log.LogInformation("Processing InputFuction");
 
@@ -67,33 +70,15 @@ namespace UKLepraBotFaaS.Functions
 
         private static async Task BotOnMessageReceived(Message message)
         {
-            //if (message.Type == MessageType.ChatMembersAdded && message.NewChatMembers.Any())
-            //{
-            //    var newUser = message.NewChatMembers.First();//(x => x.IsBot == false);
+            if(message.Type == MessageType.ChatMembersAdded || message.Type == MessageType.ChatMemberLeft)
+            {
+                _log.LogInformation("Matched chatmemebersupdate queue");
 
-            //    var name = $"{newUser.FirstName} {newUser.LastName}".TrimEnd();
-            //    var reply = $"[{name}](tg://user?id={newUser.Id}), ты вообще с какого посткода";
+                var data = new {Type = (int)message.Type, message.NewChatMembers, ChatId = message.Chat.Id, message.MessageId};
 
-            //    await _bot.SendTextMessageAsync(
-            //            chatId: message.Chat.Id,
-            //            replyToMessageId: message.MessageId,
-            //            text: reply,
-            //            parseMode: ParseMode.MarkdownV2);
-
-            //    Console.WriteLine("Processed ChatMembersAdded event");
-            //    return;
-            //}
-
-            //if (message.Type == MessageType.ChatMemberLeft)
-            //{
-            //    var sticker = new InputOnlineFile(Stickers.DaIHuiSNim);
-            //    await _bot.SendStickerAsync(chatId: message.Chat.Id, sticker: sticker);
-
-            //    Console.WriteLine("Processed ChatMemberLeft event");
-            //    return;
-            //}
-
-            if (message.Type == MessageType.Text)
+                await _chatMembersUpdateOutput.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
+            }
+            else if (message.Type == MessageType.Text)
             {
                 await ProcessMessage(message);
             }
