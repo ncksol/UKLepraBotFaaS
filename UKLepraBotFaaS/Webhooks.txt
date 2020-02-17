@@ -1,0 +1,3 @@
+﻿Invoke-RestMethod -Uri https://api.telegram.org/bot{BOT_ID}/setWebhook -Body @{"url"="https://ukleprabotfaas.azurewebsites.net/api/InputFunction?code={CODE}"} -Method Post
+Invoke-RestMethod -Uri https://api.telegram.org/bot{BOT_ID}/getWebhookInfo -Method Post
+Invoke-RestMethod -Uri https://api.telegram.org/bot{BOT_ID}/deleteWebhook -Method Post

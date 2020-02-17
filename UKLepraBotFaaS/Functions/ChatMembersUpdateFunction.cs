@@ -34,7 +34,8 @@ namespace UKLepraBotFaaS.Functions
 
                 if (type.GetValueOrDefault() == (int)MessageType.ChatMembersAdded && newChatMembers.Any())
                 {
-                    var newUser = newChatMembers.First();//(x => x.IsBot == false);
+                    var newUser = newChatMembers.FirstOrDefault(x => x.IsBot == false);
+                    if(newUser == null) return;
 
                     var name = $"{newUser.FirstName} {newUser.LastName}".TrimEnd();
                     var reply = $"[{name}](tg://user?id={newUser.Id}), ты вообще с какого посткода";
