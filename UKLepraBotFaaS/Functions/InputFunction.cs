@@ -12,6 +12,7 @@ using Telegram.Bot.Types.Enums;
 using System.Linq;
 using Microsoft.WindowsAzure.Storage.Queue;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace UKLepraBotFaaS.Functions
 {
@@ -52,13 +53,19 @@ namespace UKLepraBotFaaS.Functions
 
             try
             {
-                var requestBody = await new StreamReader(req.Body).ReadToEndAsync();                
-                var update = JsonConvert.DeserializeObject<Update>(requestBody);
+                Update update;
+                using(new TimingScopeWrapper(log, "Reading request body took: {0}ms"))
+                { 
+                    var requestBody = await new StreamReader(req.Body).ReadToEndAsync();                
+                    update = JsonConvert.DeserializeObject<Update>(requestBody); 
+                };
+
                 if(update.Type != UpdateType.Message) return new OkObjectResult("");
 
                 _reactions = JsonConvert.DeserializeObject<ReactionsList>(reactionsString);
 
                 await BotOnMessageReceived(update.Message);
+
             }
             catch (Exception e)
             {
@@ -71,7 +78,7 @@ namespace UKLepraBotFaaS.Functions
         private static async Task BotOnMessageReceived(Message message)
         {
             if(message.Type == MessageType.ChatMembersAdded || message.Type == MessageType.ChatMemberLeft)
-            {
+            {                
                 _log.LogInformation("Matched chatmemebersupdate queue");
 
                 var data = new {Type = (int)message.Type, message.NewChatMembers, ChatId = message.Chat.Id, message.MessageId};
@@ -94,18 +101,21 @@ namespace UKLepraBotFaaS.Functions
             else if (!string.IsNullOrEmpty(message.Text) && _aiFunctionActivators.Any(x => message.Text.ToLower().Contains(x)))
             {
                 _log.LogInformation("Matched GoogleIt queue");
-                await _aiQueueOutput.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(message)));
+                using (new TimingScopeWrapper(_log, "Adding message to google queue took: {0}ms"))
+                    await _aiQueueOutput.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(message)));
             }
             else if (IsReaction(message, out var reaction))
             {
                 _log.LogInformation("Matched reaction queue");
                 var data = new { reaction = reaction, chatid = message.Chat.Id, replytoid = message.MessageId };
-                await _reactionsQueueOutput.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
+                using (new TimingScopeWrapper(_log, "Adding message to reaction queue took: {0}ms"))
+                    await _reactionsQueueOutput.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
             }
             else
             {
                 _log.LogInformation("Matched huify queue");
-                await _huifyQueueOutput.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(message)));
+                using (new TimingScopeWrapper(_log, "Adding message to huify queue took: {0}ms"))
+                    await _huifyQueueOutput.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(message)));
             }
         }
 

@@ -1,15 +1,9 @@
 using System;
-using System.IO;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using System.Collections.Generic;
 using System.Linq;
-using Telegram.Bot.Types;
 using Microsoft.WindowsAzure.Storage.Queue;
 using Newtonsoft.Json.Linq;
 
@@ -27,14 +21,23 @@ namespace UKLepraBotFaaS.Functions
 
             try
             {
-                var input = JsonConvert.DeserializeObject<dynamic>(inputString);
-                var reaction = (input?.reaction as JObject).ToObject<Reaction>();
+                dynamic input;
+                dynamic reaction;
+                using (new TimingScopeWrapper(log, "Deserializing reaction queue string took: {0}ms"))
+                    input = JsonConvert.DeserializeObject<dynamic>(inputString);
+
+                using (new TimingScopeWrapper(log, "Deserializing reaction dynamic class took: {0}ms"))
+                    reaction = (input?.reaction as JObject).ToObject<Reaction>();
+                
                 var chatId = input?.chatid;
                 var replyToId = input?.replytoid;
 
                 var reply = DoReaction(reaction);
-                var data = new { ChatId = chatId, ReplyToMessageId = replyToId, Text = reply.Text, Sticker = reply.Sticker };
-                await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
+                using (new TimingScopeWrapper(log, "Adding message to output queue took: {0}ms"))
+                { 
+                    var data = new { ChatId = chatId, ReplyToMessageId = replyToId, Text = reply.Text, Sticker = reply.Sticker };
+                    await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
+                }
             }
             catch (Exception e)
             {

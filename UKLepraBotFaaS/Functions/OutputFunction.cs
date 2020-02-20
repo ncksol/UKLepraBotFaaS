@@ -18,21 +18,31 @@ namespace UKLepraBotFaaS.Functions
             var bot = new TelegramBotClient(Configuration.Instance.BotToken);
             try
             {
-                var me = await bot.GetMeAsync();
-                if(me == null) 
-                    throw new Exception("Bot initialisation failed");
+                using (new TimingScopeWrapper(log, "Bot GetMeAsync call took: {0}ms"))
+                { 
+                    var me = await bot.GetMeAsync();
+                    if(me == null) 
+                        throw new Exception("Bot initialisation failed");
+                }
 
-                dynamic data = JsonConvert.DeserializeObject(input);
+                dynamic data;
+                using (new TimingScopeWrapper(log, "Desearializing input string in output queue took: {0}ms"))
+                { 
+                    data = JsonConvert.DeserializeObject(input);
+                }
+
                 string chatId = data?.ChatId;
                 string replyToMessageId = data?.ReplyToMessageId;
                 string text = data?.Text;
                 string sticker = data?.Sticker;
                 bool? disableWebPagePreview = data?.DisableWebPagePreview ?? false;
                 int? parseMode = data?.ParseMode ?? (int?)ParseMode.Default;
+                
 
                 if(string.IsNullOrEmpty(text) == false)
                 {
-                    await bot.SendTextMessageAsync(
+                    using (new TimingScopeWrapper(log, "Replying with text message took: {0}ms"))
+                        await bot.SendTextMessageAsync(
                             chatId: chatId,
                             replyToMessageId: Convert.ToInt32(replyToMessageId),
                             text: text,
@@ -41,7 +51,8 @@ namespace UKLepraBotFaaS.Functions
                 }
                 else if(string.IsNullOrEmpty(sticker) == false)
                 {
-                    await bot.SendStickerAsync(
+                    using (new TimingScopeWrapper(log, "Replying with sticker message took: {0}ms"))
+                        await bot.SendStickerAsync(
                             chatId: chatId,
                             replyToMessageId: Convert.ToInt32(replyToMessageId),
                             sticker: sticker);

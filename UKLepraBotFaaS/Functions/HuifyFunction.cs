@@ -27,20 +27,30 @@ namespace UKLepraBotFaaS.Functions
 
             try
             {
-                var chatSettings = JsonConvert.DeserializeObject<ChatSettings>(chatSettingsString);
+                ChatSettings chatSettings;
+                using (new TimingScopeWrapper(log, "Deserializing chat settings string took: {0}ms"))
+                    chatSettings = JsonConvert.DeserializeObject<ChatSettings>(chatSettingsString);
 
                 var shouldProcessMessage = ShouldProcessMessage(chatSettings, input);
 
-                var settingsBlob = chatSettingsOutput.GetBlockBlobReference("chatsettings.json");
-                await settingsBlob.UploadTextAsync(JsonConvert.SerializeObject(chatSettings));
+                using (new TimingScopeWrapper(log, "Saving chat settings back to storage took: {0}ms"))
+                { 
+                    var settingsBlob = chatSettingsOutput.GetBlockBlobReference("chatsettings.json");
+                    await settingsBlob.UploadTextAsync(JsonConvert.SerializeObject(chatSettings));
+                }
 
                 if(shouldProcessMessage == false) return;
 
                 var message = input.Text;
-                var huifiedMessage = HuifyMeInternal(message);
+                string huifiedMessage;
+                using (new TimingScopeWrapper(log, "Huifying message took: {0}ms"))
+                    huifiedMessage = HuifyMeInternal(message);
 
-                var data = new {ChatId = input.Chat.Id, ReplyToMessageId = input.MessageId, Text = huifiedMessage};
-                await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
+                using (new TimingScopeWrapper(log, "Adding message to output queue took: {0}ms"))
+                { 
+                    var data = new {ChatId = input.Chat.Id, ReplyToMessageId = input.MessageId, Text = huifiedMessage};
+                    await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
+                }
             }
             catch (Exception e)
             {
