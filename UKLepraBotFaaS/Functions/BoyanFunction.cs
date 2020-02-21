@@ -27,10 +27,23 @@ namespace UKLepraBotFaaS.Functions
                     input = JsonConvert.DeserializeObject<dynamic>(inputString);
 
                 var message = (input?.message as JObject).ToObject<Message>();
-                var url = (string)input?.url;
-                var urlClean = url.Replace("https://", "").Replace("http://", "").Replace("www.", "").TrimEnd('/', '?').Trim();
+                var url = ((string)input?.url).TrimEnd('/', '?');
+                var uri = new Uri(url);
 
-                var urlQuery = new TableQuery<BoyanEntity>().Where(TableQuery.GenerateFilterCondition("Url", QueryComparisons.Equal, urlClean));
+                string cleanUrl;
+                if(uri.Host.Contains("youtube.com"))
+                {
+                    cleanUrl = uri.Host.Replace("www.", "") + uri.PathAndQuery;
+                }
+                else
+                {
+                    cleanUrl = uri.Host.Replace("www.", "") + uri.AbsolutePath;
+                }
+
+                var urlQuery = new TableQuery<BoyanEntity>().Where(TableQuery.CombineFilters(
+                                                                                    TableQuery.GenerateFilterCondition("Url", QueryComparisons.Equal, cleanUrl), 
+                                                                                    TableOperators.And, 
+                                                                                    TableQuery.GenerateFilterCondition("ChatId", QueryComparisons.Equal, message.Chat.Id.ToString())));
 
                 var results = await cloudTable.ExecuteQuerySegmentedAsync(urlQuery, null);
                 
@@ -39,10 +52,20 @@ namespace UKLepraBotFaaS.Functions
                 {
                     var data = CreateReactionData(message);
                     await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
+
+                    var forwardData = new { ChatId = message.Chat.Id, ForwardMessageId = firstResult.MessageId};
+                    await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(forwardData)));
                 }
                 else
                 {
-                    var entity = new BoyanEntity { Url = urlClean, MessageId = message.MessageId, PartitionKey = url.GetHashCode().ToString(), RowKey = Guid.NewGuid().ToString().Replace("-", "")};
+                    var entity = new BoyanEntity 
+                    {
+                        Url = cleanUrl, 
+                        MessageId = message.MessageId.ToString(), 
+                        ChatId = message.Chat.Id.ToString(), 
+                        PartitionKey = message.Chat.Id.ToString(), 
+                        RowKey = message.MessageId.ToString() 
+                    };
                     var operation = TableOperation.Insert(entity);
                     await cloudTable.ExecuteAsync(operation);
                 }

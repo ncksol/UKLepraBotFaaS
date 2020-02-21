@@ -35,6 +35,7 @@ namespace UKLepraBotFaaS
     {
         public string Url { get; set; }
         public string Keyword { get; set; }
-        public int MessageId { get; set;}
+        public string MessageId { get; set;}
+        public string ChatId { get;set;}
     }
 }

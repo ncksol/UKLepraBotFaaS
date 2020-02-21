@@ -30,6 +30,7 @@ namespace UKLepraBotFaaS.Functions
                 string text = data?.Text;
                 string sticker = data?.Sticker;
                 string gif = data?.Gif;
+                string forwardMessageId = data?.ForwardMessageId;
                 bool? disableWebPagePreview = data?.DisableWebPagePreview ?? false;
                 int? parseMode = data?.ParseMode ?? (int?)ParseMode.Default;
                 
@@ -59,6 +60,14 @@ namespace UKLepraBotFaaS.Functions
                             chatId: chatId,
                             replyToMessageId: Convert.ToInt32(replyToMessageId), 
                             document: new InputOnlineFile(gif));
+                }
+                else if(string.IsNullOrEmpty(forwardMessageId) == false)
+                {
+                    using (new TimingScopeWrapper(log, "Replying with forward message took: {0}ms"))
+                        await bot.ForwardMessageAsync(
+                            chatId: chatId,
+                            fromChatId: chatId,
+                            messageId: Convert.ToInt32(forwardMessageId));
                 }
             }
             catch (Exception e)
