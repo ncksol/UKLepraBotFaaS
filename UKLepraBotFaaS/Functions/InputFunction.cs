@@ -65,7 +65,6 @@ namespace UKLepraBotFaaS.Functions
                 { 
                     var requestBody = await new StreamReader(req.Body).ReadToEndAsync();                
                     update = JsonConvert.DeserializeObject<Update>(requestBody);
-                    _log.LogInformation(requestBody);
                 };
 
                 if(update.Type != UpdateType.Message) return new OkObjectResult("");

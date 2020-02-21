@@ -19,13 +19,6 @@ namespace UKLepraBotFaaS.Functions
             var bot = new TelegramBotClient(Configuration.Instance.BotToken);
             try
             {
-                using (new TimingScopeWrapper(log, "Bot GetMeAsync call took: {0}ms"))
-                { 
-                    var me = await bot.GetMeAsync();
-                    if(me == null) 
-                        throw new Exception("Bot initialisation failed");
-                }
-
                 dynamic data;
                 using (new TimingScopeWrapper(log, "Desearializing input string in output queue took: {0}ms"))
                 { 

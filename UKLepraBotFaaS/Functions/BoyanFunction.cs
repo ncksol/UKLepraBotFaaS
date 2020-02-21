@@ -28,7 +28,7 @@ namespace UKLepraBotFaaS.Functions
 
                 var message = (input?.message as JObject).ToObject<Message>();
                 var url = (string)input?.url;
-                var urlClean = url.Replace("https://", "").Replace("http://", "").Replace("www.", "").TrimEnd('/').Trim();
+                var urlClean = url.Replace("https://", "").Replace("http://", "").Replace("www.", "").TrimEnd('/', '?').Trim();
 
                 var urlQuery = new TableQuery<BoyanEntity>().Where(TableQuery.GenerateFilterCondition("Url", QueryComparisons.Equal, urlClean));
 
