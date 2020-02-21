@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -33,14 +32,26 @@ namespace UKLepraBotFaaS.Functions
             {
                 _rnd = new Random();
 
-                _chatSettings = JsonConvert.DeserializeObject<ChatSettings>(chatSettingsString);
+                using (new TimingScopeWrapper(log, "Deserealizing chat settings took: {0}ms"))
+                    _chatSettings = JsonConvert.DeserializeObject<ChatSettings>(chatSettingsString);
 
                 var reply = ProcessSettingCommand(input);
-                var data = new { ChatId = input.Chat.Id, Text = reply };
-                await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
 
-                var settingsBlob = chatSettingsOutput.GetBlockBlobReference("chatsettings.json");
-                await settingsBlob.UploadTextAsync(JsonConvert.SerializeObject(_chatSettings));
+                using (new TimingScopeWrapper(log, "Adding message to output queue took: {0}ms"))
+                { 
+                    var data = new { ChatId = input.Chat.Id, Text = reply };
+                    await output.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
+                }
+
+                var newChatSettingsString = JsonConvert.SerializeObject(_chatSettings);                
+                if(string.Equals(chatSettingsString, newChatSettingsString, StringComparison.InvariantCultureIgnoreCase) == false)
+                {
+                    using (new TimingScopeWrapper(log, "Saving update chat settings took: {0}ms"))
+                    { 
+                        var settingsBlob = chatSettingsOutput.GetBlockBlobReference("chatsettings.json");
+                        await settingsBlob.UploadTextAsync(newChatSettingsString);
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -230,6 +241,7 @@ namespace UKLepraBotFaaS.Functions
                 _chatSettings.Delay[conversationId] = _rnd.Next(delaySettings.Item1, delaySettings.Item2 + 1);
             else
                 _chatSettings.Delay[conversationId] = _rnd.Next(4);
+
             return reply;
         }
 
