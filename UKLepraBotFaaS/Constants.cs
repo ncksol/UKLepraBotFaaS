@@ -8,7 +8,6 @@ namespace UKLepraBotFaaS
     {
         public const string OutputQueueName = "output";
         public const string ChatMembersUpdateQueueName = "chatmembersupdate";
-        public const string HuifyQueueName = "huify";
         public const string SettingsQueueName = "settings";
         public const string GoogleItQueueName = "googleit";
         public const string BoyansQueueName = "boyans";
