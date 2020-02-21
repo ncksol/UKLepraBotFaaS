@@ -11,6 +11,7 @@ namespace UKLepraBotFaaS
         public const string HuifyQueueName = "huify";
         public const string SettingsQueueName = "settings";
         public const string GoogleItQueueName = "googleit";
+        public const string BoyansQueueName = "boyans";
         public const string ReactionsQueueName = "reactions";
         public const string ReactionsBlobPath = "data/reactions.json";
         public const string ChatSettingsBlobPath = "data/chatsettings.json";

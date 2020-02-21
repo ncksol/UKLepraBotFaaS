@@ -20,7 +20,7 @@ namespace UKLepraBotFaaS
 
         protected override void Dispose(bool disposing)
         {
-            _log.LogDebug(_message, DateTimeOffset.Now - _timeStarted);
+            _log.LogInformation(_message, (DateTimeOffset.Now - _timeStarted).TotalMilliseconds);
         }
     }
 

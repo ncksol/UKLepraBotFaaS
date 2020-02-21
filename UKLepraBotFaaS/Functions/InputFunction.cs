@@ -13,6 +13,7 @@ using System.Linq;
 using Microsoft.WindowsAzure.Storage.Queue;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace UKLepraBotFaaS.Functions
 {
@@ -21,12 +22,14 @@ namespace UKLepraBotFaaS.Functions
         private static CloudQueue _huifyQueueOutput;
         private static CloudQueue _settingsQueueOutput;
         private static CloudQueue _aiQueueOutput;
+        private static CloudQueue _boyanQueueOutput;
         private static CloudQueue _reactionsQueueOutput;
         private static CloudQueue _chatMembersUpdateOutput;
+        private static CloudQueue _outputQueue;
 
         private static ReactionsList _reactions;
 
-        private static readonly List<string> _settingsFunctionActivators = new List<string> { "/status", "/huify", "/unhuify", "/uptime", "/delay", "/secret", "/reload" };
+        private static readonly List<string> _settingsFunctionActivators = new List<string> { "/status", "/huify", "/unhuify", "/uptime", "/delay", "/secret", "/reload", "/sticker" };
         public static readonly List<string> _aiFunctionActivators = new List<string> { "погугли" };
 
         private static ILogger _log;
@@ -37,17 +40,21 @@ namespace UKLepraBotFaaS.Functions
             [Queue(Constants.HuifyQueueName)] CloudQueue huifyQueueOutput,
             [Queue(Constants.SettingsQueueName)] CloudQueue settingsQueueOutput,
             [Queue(Constants.GoogleItQueueName)] CloudQueue aiQueueOutput,
+            [Queue(Constants.BoyansQueueName)] CloudQueue boyanQueueOutput,
             [Queue(Constants.ReactionsQueueName)] CloudQueue reactionsQueueOutput,
             [Queue(Constants.ChatMembersUpdateQueueName)] CloudQueue chatMembersUpdateOutput,
             [Blob(Constants.ReactionsBlobPath)] string reactionsString,
+            [Queue(Constants.OutputQueueName)] CloudQueue outputQueue,
             ILogger log)
         {
             _log = log;
             _huifyQueueOutput = huifyQueueOutput;
             _settingsQueueOutput = settingsQueueOutput;
             _aiQueueOutput = aiQueueOutput;
+            _boyanQueueOutput = boyanQueueOutput;
             _reactionsQueueOutput = reactionsQueueOutput;
             _chatMembersUpdateOutput = chatMembersUpdateOutput;
+            _outputQueue = outputQueue;
 
             log.LogInformation("Processing InputFuction");
 
@@ -57,11 +64,12 @@ namespace UKLepraBotFaaS.Functions
                 using(new TimingScopeWrapper(log, "Reading request body took: {0}ms"))
                 { 
                     var requestBody = await new StreamReader(req.Body).ReadToEndAsync();                
-                    update = JsonConvert.DeserializeObject<Update>(requestBody); 
+                    update = JsonConvert.DeserializeObject<Update>(requestBody);
+                    _log.LogInformation(requestBody);
                 };
 
                 if(update.Type != UpdateType.Message) return new OkObjectResult("");
-
+                
                 _reactions = JsonConvert.DeserializeObject<ReactionsList>(reactionsString);
 
                 await BotOnMessageReceived(update.Message);
@@ -85,24 +93,31 @@ namespace UKLepraBotFaaS.Functions
 
                 await _chatMembersUpdateOutput.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
             }
-            else if (message.Type == MessageType.Text)
+            else if (message.Type == MessageType.Text || message.Type == MessageType.Sticker)
             {
                 await ProcessMessage(message);
             }
         }
 
         public async static Task ProcessMessage(Message message)
-        {
-            if (HelperMethods.MentionsBot(message) && !string.IsNullOrEmpty(message.Text) && _settingsFunctionActivators.Any(x => message.Text.ToLower().Contains(x)))
+        {            
+            if (message.Type == MessageType.Text && HelperMethods.MentionsBot(message) && !string.IsNullOrEmpty(message.Text) && _settingsFunctionActivators.Any(x => message.Text.ToLower().Contains(x)))
             {
                 _log.LogInformation("Matched settings queue");
                 await _settingsQueueOutput.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(message)));
             }
-            else if (!string.IsNullOrEmpty(message.Text) && _aiFunctionActivators.Any(x => message.Text.ToLower().Contains(x)))
+            else if (message.Type == MessageType.Text && !string.IsNullOrEmpty(message.Text) && _aiFunctionActivators.Any(x => message.Text.ToLower().Contains(x)))
             {
                 _log.LogInformation("Matched GoogleIt queue");
                 using (new TimingScopeWrapper(_log, "Adding message to google queue took: {0}ms"))
                     await _aiQueueOutput.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(message)));
+            }
+            else if(message.Type == MessageType.Text && IsUrl(message, out var url))
+            {
+                _log.LogInformation("Matched Boyan queue");
+                var data = new { message, url};
+                using (new TimingScopeWrapper(_log, "Adding message to boyan queue took: {0}ms"))
+                    await _boyanQueueOutput.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
             }
             else if (IsReaction(message, out var reaction))
             {
@@ -111,7 +126,13 @@ namespace UKLepraBotFaaS.Functions
                 using (new TimingScopeWrapper(_log, "Adding message to reaction queue took: {0}ms"))
                     await _reactionsQueueOutput.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
             }
-            else
+            else if(message.Chat.Type == ChatType.Private && message.From.Id.ToString() == Configuration.Instance.MasterId && message.Sticker != null)
+            {
+                _log.LogInformation("Matched sticker queue");
+                var data = new { ChatId = message.Chat.Id, Text = message.Sticker.FileId};
+                await _outputQueue.AddMessageAsync(new CloudQueueMessage(JsonConvert.SerializeObject(data)));
+            }
+            else if(message.Type == MessageType.Text)
             {
                 _log.LogInformation("Matched huify queue");
                 using (new TimingScopeWrapper(_log, "Adding message to huify queue took: {0}ms"))
@@ -130,6 +151,16 @@ namespace UKLepraBotFaaS.Functions
             if (reaction.IsAlwaysReply == false && HelperMethods.YesOrNo() == false) return false;
 
             return true;
+        }
+
+        private static bool IsUrl(Message message, out string url)
+        {
+            var rgx = new Regex(@"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&\/\/=]*)");
+
+            var match = rgx.Match(message.Text);
+            url = match.ToString();
+
+            return match.Success;
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.WindowsAzure.Storage.Table;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -28,5 +29,12 @@ namespace UKLepraBotFaaS
         public Dictionary<string, Tuple<int, int>> DelaySettings { get; set; } = new Dictionary<string, Tuple<int, int>>();
         public Dictionary<string, int> Delay { get; set; } = new Dictionary<string, int>();
         public Dictionary<string, bool> State { get; set; } = new Dictionary<string, bool>();
+    }
+
+    public class BoyanEntity:TableEntity
+    {
+        public string Url { get; set; }
+        public string Keyword { get; set; }
+        public int MessageId { get; set;}
     }
 }

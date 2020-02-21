@@ -78,6 +78,8 @@ namespace UKLepraBotFaaS.Functions
                 reply = DelayCommand(text, chatId, from);
             else if (text.ToLower().Contains("/secret"))
                 reply = SecretCommand(text);
+            else if (text.ToLower().Contains("/sticker"))
+                reply = SecretCommand(text);
 
             return reply;
         }

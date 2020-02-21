@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.InputFiles;
 
 namespace UKLepraBotFaaS.Functions
 {
@@ -35,6 +36,7 @@ namespace UKLepraBotFaaS.Functions
                 string replyToMessageId = data?.ReplyToMessageId;
                 string text = data?.Text;
                 string sticker = data?.Sticker;
+                string gif = data?.Gif;
                 bool? disableWebPagePreview = data?.DisableWebPagePreview ?? false;
                 int? parseMode = data?.ParseMode ?? (int?)ParseMode.Default;
                 
@@ -56,6 +58,14 @@ namespace UKLepraBotFaaS.Functions
                             chatId: chatId,
                             replyToMessageId: Convert.ToInt32(replyToMessageId),
                             sticker: sticker);
+                }
+                else if(string.IsNullOrEmpty(gif) == false)
+                {
+                    using (new TimingScopeWrapper(log, "Replying with gif message took: {0}ms"))
+                        await bot.SendDocumentAsync(
+                            chatId: chatId,
+                            replyToMessageId: Convert.ToInt32(replyToMessageId), 
+                            document: new InputOnlineFile(gif));
                 }
             }
             catch (Exception e)
